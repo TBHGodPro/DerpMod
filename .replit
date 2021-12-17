@@ -1,0 +1,1 @@
+run = "clear;bash node index.js"

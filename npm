@@ -1,0 +1,2 @@
+~/DerpMod/node_modules/node/bin/node
+~/DerpMod/node_modules/node/bin/npm-cli.js $@

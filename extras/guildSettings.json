@@ -1,0 +1,17 @@
+[
+	{
+		"name": "message_delete_log",
+		"displayName": "Message Delete Log",
+		"desc": "Send a message showing messages when they get deleted.",
+		"values": [
+			{
+				"name": "on-off",
+				"value": true,
+				"type": 5,
+				"typeText": "Boolean",
+				"desc": "Enable or disable the setting",
+				"required": true
+			}
+		]
+	}
+]
