@@ -13,11 +13,11 @@
     "discord-api-types": "^0.22.0",
     "discord.js": "^13.1.0",
     "express": "^4.17.1",
-    "mongoose": "^5.12.13",
-    "node-fetch": "^2.6.1",
+    "fs-extra": "^10.0.1",
+    "mongoose": "^6.2.7",
+    "node": "^16.13.1",
+    "node-fetch": "^2.6.7",
     "util": "^0.12.4"
   },
-  "devDependencies": {
-    "node": "^16.6.1"
-  }
+  "devDependencies": {}
 }

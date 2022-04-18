@@ -26,9 +26,9 @@ exports.run = async(Discord, client, wait, getData, setData, trigger) => {
 
 	
 	if(trigger !== undefined) {
-		await interactionCreate1(trigger)
+		return await interactionCreate1(trigger)
 	} else {
-		client.on('interactionCreate', async int => {await interactionCreate1(int)})
+		client.on('interactionCreate', async int => {if(int.commandName === 'profile') {await int.reply(await interactionCreate1(int))}})
 	}
 
 
@@ -37,7 +37,7 @@ exports.run = async(Discord, client, wait, getData, setData, trigger) => {
 
 	    const { commandName } = interaction;
 
-	    if (commandName === 'profile' || commandName === 'view_profile') {
+	    if (commandName === 'profile' || commandName === 'View Profile') {
     
         var canvas = Canvas.createCanvas(700, 250)
     
@@ -156,7 +156,7 @@ exports.run = async(Discord, client, wait, getData, setData, trigger) => {
 
         var attachment = new Discord.MessageAttachment(canvas.toBuffer(), 'profile-image.png')
     
-        interaction.reply({files: [attachment]})
+        return {files: [attachment]}
     
 	    }
     

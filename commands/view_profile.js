@@ -1,7 +1,7 @@
 module.exports = {
 	data: {
-		name: 'view_profile',
-		type: 3
+		name: 'View Profile',
+		type: 2
 	},
 	type: 'USER'
 }

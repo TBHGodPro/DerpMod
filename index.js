@@ -13,11 +13,10 @@ app.listen(3000, () => {
 
 
 const wait = require('util').promisify(setTimeout)
-const fs = require('fs');
-const fetch = require('node-fetch')
+const fs = require('fs-extra');
 
 const Discord = require('discord.js')
-const Intents = Discord.Intents
+const Intents = Discord.Intents.FLAGS
 
 const mongoose = require('mongoose')
 const mongooseLauncher = require('./database/mongoose')
@@ -26,7 +25,7 @@ const Guild = require('./database/models/guild')
 const token = process.env.token
 
 const client = new Discord.Client({
-	intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MEMBERS, Intents.FLAGS.GUILD_VOICE_STATES, Intents.FLAGS.GUILD_PRESENCES, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.DIRECT_MESSAGES]
+	intents: [Intents.GUILDS, Intents.GUILD_MEMBERS, Intents.GUILD_VOICE_STATES, Intents.GUILD_PRESENCES, Intents.GUILD_MESSAGES, Intents.DIRECT_MESSAGES]
 })
 
 var commands = [];
@@ -41,13 +40,11 @@ async function getData(id, type) {
 
 	if (type === 'g') {
 
-		var data = await Guild.findOne({
+		var data = await Guild.find({
 			'id': id
-		}, async (err, docs) => {
-			return await docs
-		})
+		}, {_id:0, __v:0})
 
-		return data
+		return data[0]
 	}
 
 }
@@ -106,6 +103,24 @@ async function setData(id, data, type) {
 
 
 
+app.get('/getGuild', async (req, res) => {
+	function waitForTrue() {
+		if (client.isReady() === false) {
+			setTimeout(waitForTrue, 100)
+		} else {
+			run()
+			return
+		}
+	}
+	waitForTrue()
+	async function run() {
+		var guild = await getData(req.query.guildId)
+		res.send(guild)
+	}
+})
+
+
+
 app.get('/guildcheck', async (req, res) => {
 	function waitForTrue() {
 		if (client.isReady() === false) {
@@ -147,10 +162,22 @@ app.get('/guildsave', async (req, res) => {
 		var guildId = query.guildId
 		delete query.redirect;
 		delete query.guildId;
-		// ACTUAL CODE:
-		// await setData(guildId, query, 'g')
-		console.log(query)
-		res.redirect(`https://derpdevs.repl.co/bots/derpmod/${redirect}`)
+
+		var updateData = {'settings':{}}
+
+		Object.keys(query).forEach(key => {
+			if(updateData.settings[key.split('.')[0]] === undefined) updateData.settings[key.split('.')[0]] = {}
+
+			var value = query[key]
+
+			try {var value = JSON.parse(value)} catch(err) {if(parseInt(value) !== 'NaN') {var value = parseInt(value)} else if(value === 'true') {var value = true} else if(value === 'false') {var value = false} else {var value = value}}
+
+			updateData.settings[key.split('.')[0]][key.split('.')[1]] = value
+		})
+
+		await setData(guildId, updateData, 'g')
+		var botGuild = await getData(guildId)
+		res.redirect(`https://derpdevs.repl.co/bots/derpmod/${redirect}?botGuild=${JSON.stringify(botGuild)}`)
 	}
 })
 
@@ -161,6 +188,8 @@ client.on('rateLimit', (info) => {
 })
 
 client.on('ready', async (client) => {
+
+	console.log(`Logged in as ${client.user.tag} (${client.user.id}).`);
 
 	/* Client easier fetching */
 	(() => {
@@ -203,9 +232,9 @@ client.on('ready', async (client) => {
 		}
 	})();
 
-	console.log(`Logged in as ${client.user.tag} (${client.user.id}).`);
-
-	/* XBOX Live Status Updater: */ require('./XBOXLive.js')(client, Discord, fetch, wait)
+	/* XBOX Live Status Updater */ require('./self/XBOXLive.js')(client, Discord, wait);
+	/* Discord User Status Updater */ require('./self/UserStatus.js')(client, Discord, wait);
+	/* Discord User Session Updater */ require('./self/UserSession.js')(client, Discord, wait);
 
 	var clientId = '888219648364019792';
 	var guildId = '880227023711244328';
@@ -249,6 +278,17 @@ client.on('ready', async (client) => {
 })
 
 client.on('messageDelete', async (msg) => {
+	if(msg.guild === null) return;
+	(async() => {
+		var data = await Guild.find({
+			'id': msg.guild.id
+		})
+		data = data[0]
+		if(data.name !== msg.guild.name) {
+			data.name = msg.guild.name
+			await data.save()
+		}
+	})();
 	var enabledCheck = await getData(msg.guild.id)
 	if (enabledCheck.settings.message_delete_log['on-off'] === false) return
 
@@ -263,10 +303,19 @@ client.on('messageDelete', async (msg) => {
 	);
 
 	if (auditEntry !== undefined) {
-		var executor = auditEntry.executor.tag
+		var executor = auditEntry.executor
 	} else {
-		var executor = msg.author.tag
+		var executor = msg.author
 	}
+
+	var skipArray = [
+		'888219648364019792',
+		'808791103477252147'
+	]
+
+	if(skipArray.includes(executor.id)) return
+
+	executor = executor.tag
 
 	var replyMessage = `${executor} deleted a message by ${msg.author.tag}.`
 
@@ -324,7 +373,7 @@ client.on('guildDelete', async (guild) => {
 
 	Guild.findOneAndDelete({
 		'id': guild.id,
-	}, (err, res) => {
+	}, (err) => {
 		if (err) console.log(err)
 	})
 

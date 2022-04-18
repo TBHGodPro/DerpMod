@@ -1,10 +1,9 @@
-module.exports = async (client, Discord, fetch, wait) => {
+const fetch = require('node-fetch')
+module.exports = async (client, Discord, wait) => {
 
-	/* XBOX Live Status Updater */
 	console.log('XBOX Live Status Updater Online')
 
 	// Leah (Dino8293) XUID = 2535434439504902
-	// Dylan (Dylanbrine9989) XUID (For tests) = 2535459281883157
 
 	var message = await client.userFetch('668116405765537808')
 	message = await message.createDM()
@@ -15,27 +14,59 @@ module.exports = async (client, Discord, fetch, wait) => {
 		if (int.customId !== 'XBLUpdateUser') return
 
 		int.message.embeds[0].title = `${int.message.components[0].components[0].options.find(option => option.value === int.values[0]).label}'s XBOX Live Status`
-		int.update({ embeds: [new Discord.MessageEmbed().setTitle(int.message.embeds[0].title).setDescription('Updating...').setFields([])], components: [] })
+		int.update({
+			embeds: [new Discord.MessageEmbed().setTitle(int.message.embeds[0].title).setDescription('Updating...').setFields([])],
+			components: []
+		})
 		int.editReply(await loopFunc(true))
 	})
+
+	try {
+		const usersToXUIDs = await fetch('https://xbl.io/api/v2/friends', {
+		method: 'GET',
+		headers: {
+			'X-Authorization': process.env.XBOX_API_KEY
+		}
+	}).then(res => res.json()).then(data => {
+		return data.people.map(p => {
+			var obj = {}
+			obj[p.displayName] = p.xuid
+			return obj
+		})
+	})
+	} catch {
+		return console.log('XBOXLive.js ERROR')
+	}
 
 	while (true) {
 		await loopFunc()
 	}
+
 	async function loopFunc(sendBack) {
 		var UserXUID = message.components[0] ? message.components[0].components[0].options.find(option => option.label === message.embeds[0].title.split("'")[0]).value : '2535434439504902'
 
 		const UserGame = await fetch(`https://xbl.io/api/v2/${UserXUID}/presence`, {
 			method: 'GET',
 			headers: {
-				'X-Authorization': process.env.API_KEY
+				'X-Authorization': process.env.XBOX_API_KEY
 			}
-		}).then(res => res.json().catch(err => {
-			console.log(err);
-			return
-		})).then(data => {
+		}).then(async res => {
 
-			if (data[0].state === 'Offline') {
+			try {
+				var data = await ((resjson) => {return resjson})(res.json());
+			} catch (err) {
+				var data = [{
+					state: 'Offline',
+					error: `ERROR WITH PARSING JSON RESPONSE BODY`,
+					xuid: UserXUID
+				}]
+			}
+
+			return data
+
+		}).then(data => {
+
+			if (data[0].state === 'Offline' || data[0].state === 'Offline') {
 
 				return data[0]
 
@@ -44,13 +75,21 @@ module.exports = async (client, Discord, fetch, wait) => {
 				const game = data[0].devices.filter(device => {
 					var games = device.titles.find(title => title.placement === 'Full')
 
-					if (games !== undefined) {
-						return true
-					} else {
+					if (games === undefined) {
 						return false
+					} else {
+						return true
 					}
 
-				})[0].titles.find(title => title.placement === 'Full')
+				})[0]?.titles.find(title => title.placement === 'Full')
+
+				if(game === undefined) {
+					return {
+						state: 'Offline',
+						error: 'ERROR WITH GETTING GAME ACTIVITY',
+						xuid: data[0].xuid
+					}
+				}
 
 				game.state = data[0].state
 				game.xuid = data[0].xuid
@@ -85,7 +124,7 @@ module.exports = async (client, Discord, fetch, wait) => {
 			if (oldEmb.fields.find(field => field.name === 'Status') ? oldEmb.fields.find(field => field.name === 'Status').value : 'Offline' === 'Offline') {
 
 				embed.addFields({
-					name: 'Since',
+					name: 'Detected as Online Since',
 					value: new Date(UserGame.lastModified).toLocaleString('en-US', {
 						timeZone: 'America/Chicago',
 						weekday: 'short',
@@ -99,7 +138,7 @@ module.exports = async (client, Discord, fetch, wait) => {
 
 			} else {
 
-				embed.addField('Since', oldEmb.fields.find(field => field.name === 'Since').value)
+				embed.addField('Detected as Online Since', oldEmb.fields.find(field => field.name === 'Detected as Online Since').value)
 
 			}
 		} else if (UserGame.state === 'Offline') {
@@ -116,28 +155,36 @@ module.exports = async (client, Discord, fetch, wait) => {
 			} else if (oldEmb.fields.find(field => field.name === 'Last Seen') !== undefined && UserGame.lastSeen !== undefined) {
 				embed.addField('Last Seen', oldEmb.fields.find(field => field.name === 'Last Seen').value)
 			}
+
+			if (UserGame.error !== undefined) {
+				embed.addField('ERROR:', UserGame.error)
+			}
+
 		}
+
+		var UserOptions = usersToXUIDs.map(user => {
+
+			var username = Object.keys(user)[0]
+			var xuid = user[username]
+
+			return {
+				label: username,
+				value: xuid,
+				default: UserXUID === xuid
+			}
+		})
 
 		const switchUserRow = new Discord.MessageActionRow()
 			.addComponents(
 				new Discord.MessageSelectMenu()
 				.setCustomId('XBLUpdateUser')
-				.addOptions([{
-						label: 'Dino8293',
-						value: '2535434439504902',
-						default: UserXUID === '2535434439504902'
-					},
-					{
-						label: 'Dylanbrine9989',
-						value: '2535459281883157',
-						default: UserXUID === '2535459281883157'
-					}
-				])
+				.addOptions(UserOptions)
 				.setMinValues(1)
 				.setMaxValues(1)
 			)
 
 		if (sendBack) {
+			embed.setTimestamp()
 			return {
 				embeds: [embed],
 				components: [switchUserRow]
