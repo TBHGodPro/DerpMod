@@ -17,6 +17,7 @@
     "mongoose": "^6.2.7",
     "node": "^16.13.1",
     "node-fetch": "^2.6.7",
+    "npm": "^8.6.0",
     "util": "^0.12.4"
   },
   "devDependencies": {}
